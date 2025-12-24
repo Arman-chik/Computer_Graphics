@@ -65,4 +65,26 @@ public class Vector3D {
 
 
 
+    public float scalarProduct(Vector3D other) {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
+    }
+
+
+    public float length() {
+        float length = (float) Math.sqrt(x * x + y * y + z * z);
+        return length;
+    }
+
+
+
+    public Vector3D normalize() {
+        float len = length();
+
+        if (len == 0) {
+            return new Vector3D(0, 0, 0);
+        }
+
+        return new Vector3D(x / len, y / len, z / len);
+    }
+
 }

@@ -52,5 +52,30 @@ public class Vector2D {
     }
 
 
+
+    public float scalarProduct(Vector2D other) {
+        return this.x * other.x + this.y * other.y;
+    }
+
+
+    public float length() {
+        float length =  (float) Math.sqrt(x * x + y * y);
+        return length;
+    }
+
+
+    public Vector2D normalize() {
+        float len = length();
+
+        if (len == 0) {
+            return new Vector2D(0, 0);
+        }
+
+        return new Vector2D(x / len, y / len);
+    }
+
+
+
+
 }
 

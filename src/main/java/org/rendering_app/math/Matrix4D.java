@@ -43,7 +43,7 @@ public class Matrix4D {
 
 
 
-    public float get(int row, int col) {
+    public float getElement(int row, int col) {
         if (row >= 0 && row < 4 && col >= 0 && col < 4) {
             return matrix[row][col];
         }
@@ -52,7 +52,7 @@ public class Matrix4D {
     }
 
 
-    public void set(int row, int col, float value) {
+    public void setElement(int row, int col, float value) {
         if (row >= 0 && row < 4 && col >= 0 && col < 4) {
             matrix[row][col] = value;
         } else {
