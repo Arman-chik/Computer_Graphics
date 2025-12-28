@@ -75,7 +75,27 @@ public class Vector2D {
     }
 
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
 
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Vector2D other = (Vector2D) obj;
+
+        return Float.compare(other.x, x) == 0 && Float.compare(other.y, y) == 0;
+    }
+
+
+
+    @Override
+    public int hashCode() {
+        return Float.hashCode(x) ^ Float.hashCode(y);
+    }
 
 }
 

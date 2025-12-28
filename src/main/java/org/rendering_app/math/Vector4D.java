@@ -103,4 +103,29 @@ public class Vector4D {
 
         return new Vector4D(x / len, y / len, z / len, w / len);
     }
+
+
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Vector4D other = (Vector4D) obj;
+
+        return Float.compare(other.x, x) == 0 && Float.compare(other.y, y) == 0
+                && Float.compare(other.z, z) == 0 && Float.compare(other.w, w) == 0;
+    }
+
+
+    @Override
+    public int hashCode() {
+        return Float.hashCode(x) ^ Float.hashCode(y) ^ Float.hashCode(z) ^ Float.hashCode(w);
+    }
+
 }

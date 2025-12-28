@@ -87,4 +87,33 @@ public class Vector3D {
         return new Vector3D(x / len, y / len, z / len);
     }
 
+
+
+    public Vector3D cross() {
+        return new Vector3D();
+    }
+
+
+
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Vector3D other = (Vector3D) obj;
+
+        return Float.compare(other.x, x) == 0 && Float.compare(other.y, y) == 0 && Float.compare(other.z, z) == 0;
+    }
+
+
+    @Override
+    public int hashCode() {
+        return Float.hashCode(x) ^  Float.hashCode(y) ^ Float.hashCode(z);
+    }
 }

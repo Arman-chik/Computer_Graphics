@@ -1,5 +1,7 @@
 package org.rendering_app.math;
 
+import java.util.Arrays;
+
 public class Matrix4D {
 
     private float[][] matrix;
@@ -97,6 +99,29 @@ public class Matrix4D {
         } else {
             throw new IndexOutOfBoundsException("Индекс вышел за пределы матрицы");
         }
+    }
+
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Matrix4D other = (Matrix4D) obj;
+
+        return Arrays.deepEquals(matrix, other.matrix);
+    }
+
+
+
+    @Override
+    public int hashCode() {
+        return Arrays.deepHashCode(matrix);
     }
 
 }
