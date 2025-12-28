@@ -24,6 +24,45 @@ public class Matrix4D {
 
 
 
+    public Vector4D multiply(Vector4D vector) {  // умножение матрицы на вектор столбец
+        float x = matrix[0][0] * vector.getX() + matrix[0][1] * vector.getY() +
+                matrix[0][2] * vector.getZ() + matrix[0][3] * vector.getW();
+        float y = matrix[1][0] * vector.getX() + matrix[1][1] * vector.getY() +
+                matrix[1][2] * vector.getZ() + matrix[1][3] * vector.getW();
+        float z = matrix[2][0] * vector.getX() + matrix[2][1] * vector.getY() +
+                matrix[2][2] * vector.getZ() + matrix[2][3] * vector.getW();
+        float w = matrix[3][0] * vector.getX() + matrix[3][1] * vector.getY() +
+                matrix[3][2] * vector.getZ() + matrix[3][3] * vector.getW();
+
+        return new Vector4D(x, y, z, w);
+    }
+
+
+
+    public static Vector3D multiplyMatrix4ByVector3D(Matrix4D matrix, Vector3D vertex) {
+        float x = vertex.getX() * matrix.getElement(0, 0) + vertex.getY() * matrix.getElement(0, 1) +
+                vertex.getZ() * matrix.getElement(0, 2) + matrix.getElement(0, 3);
+
+        float y = vertex.getX() * matrix.getElement(1, 0) + vertex.getY() * matrix.getElement(1, 1) +
+                vertex.getZ() * matrix.getElement(1, 2) + matrix.getElement(1, 3);
+
+        float z = vertex.getX() * matrix.getElement(2, 0) + vertex.getY() * matrix.getElement(2, 1) +
+                vertex.getZ() * matrix.getElement(2, 2) + matrix.getElement(2, 3);
+
+        float w = vertex.getX() * matrix.getElement(3, 0) + vertex.getY() * matrix.getElement(3, 1) +
+                vertex.getZ() * matrix.getElement(3, 2) + matrix.getElement(3, 3);
+
+
+        if (Math.abs(w) < 1e-6f) {  // w блихок к нулю
+            return new Vector3D(x, y, z);
+        }
+
+        return new Vector3D(x / w, y / w, z / w);
+    }
+
+
+
+
     public static Matrix4D createIdentityMatrix() {
         float[][] identityMatrix = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
 
