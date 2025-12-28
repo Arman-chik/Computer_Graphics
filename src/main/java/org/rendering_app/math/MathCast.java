@@ -14,5 +14,15 @@ public class MathCast {
     }
 
 
+    public static Vector3D toVector3D(Point3D point) {
+        return new Vector3D(point.getX(), point.getY(), point.getZ());
+    }
+
+
+    public static Vector4D toVector4D(Vector3D v) {
+        return new Vector4D(v.getX(), v.getY(), v.getZ(), 1.0f);
+    }
+
+
 }
 
