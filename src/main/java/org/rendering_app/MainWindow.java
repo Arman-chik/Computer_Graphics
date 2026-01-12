@@ -1,26 +1,53 @@
 package org.rendering_app;
 
+import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import org.rendering_app.obj_utils.OBJReader;
+import org.rendering_app.model.Model;
+import org.rendering_app.render.Material;
+import org.rendering_app.render.Light;
+import org.rendering_app.render.Texture;
 import org.rendering_app.render.Camera;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainWindow extends Application {
 
     private final ListView<String> modelsList = new ListView<>();
     private final ListView<String> camerasList = new ListView<>();
     private final ListView<String> lightsList = new ListView<>();
+    private final List<Model> models = new ArrayList<>();
+    private final List<Model> originalModels = new ArrayList<>();
+    private final List<Material> materials = new ArrayList<>();
+    private final List<Camera> cameras = new ArrayList<>();
     private final CheckBox showMeshCheckBox = new CheckBox("Show Mesh");
     private final CheckBox showTextureCheckBox = new CheckBox("Show Texture");
     private final CheckBox showIlluminationCheckBox = new CheckBox("Show Illumination");
+    private final Label statusBar = new Label("Ready");
+    private final Label fpsLabel = new Label("FPS: 0");
     private Canvas renderCanvas;
     private Camera camera;
+    private long lastFpsTimeNs = 0;
+    private int selectedModel = -1;
+    private int frameCount = 0;
+    private double lastX;
+    private double lastY;
 
     @Override
     public void start(Stage stage) {
@@ -182,94 +209,425 @@ public class MainWindow extends Application {
         return right;
     }
 
-    private Node createStatusBar() {
-        return null;
+    private Pane createStatusBar() {
+        HBox status = new HBox(10);
+        status.setPadding(new Insets(5, 10, 5, 10));
+        HBox.setHgrow(statusBar, Priority.ALWAYS);
+        status.getChildren().addAll(statusBar, fpsLabel);
+        return status;
     }
 
 
     private void setupListeners() {
+        ChangeListener<Number> modelListener = (obs, oldV, newV) -> onModelSelected();
+        modelsList.getSelectionModel().selectedIndexProperty().addListener(modelListener);
 
+        renderCanvas.setOnMousePressed(e -> {
+            lastX = e.getX();
+            lastY = e.getY();
+        });
+
+        renderCanvas.setOnMouseDragged(e -> {
+            if (e.getButton() != MouseButton.PRIMARY && !e.isPrimaryButtonDown()) return;
+            double dx = e.getX() - lastX;
+            double dy = e.getY() - lastY;
+
+            org.rendering_app.math.Vector3D cameraPos = camera.getPosition();
+            float radius = cameraPos.length();
+            float theta = (float) Math.atan2(cameraPos.getZ(), cameraPos.getX());
+            float phi = (float) Math.acos(cameraPos.getY() / radius);
+
+            theta -= dx * 0.01f;
+            phi = (float) Math.max(0.1f, Math.min(Math.PI - 0.1f, phi - dy * 0.01f));
+
+            float newX = radius * (float) (Math.sin(phi) * Math.cos(theta));
+            float newY = radius * (float) (Math.cos(phi));
+            float newZ = radius * (float) (Math.sin(phi) * Math.sin(theta));
+
+            camera.setPosition(new org.rendering_app.math.Vector3D(newX, newY, newZ));
+            camera.setTarget(new org.rendering_app.math.Vector3D(0, 0, 0));
+
+            lastX = e.getX();
+            lastY = e.getY();
+            updateScene();
+        });
+
+        renderCanvas.addEventHandler(ScrollEvent.SCROLL, e -> {
+            double wheel = e.getDeltaY() > 0 ? -1 : 1;
+            onMouseWheelMoved((float) wheel);
+        });
     }
 
     private void setupAnimationTimer() {
+        AnimationTimer timer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                updateFps(now);
+                updateScene();
+            }
+        };
+        timer.start();
+    }
 
+    private void updateFps(long now) {
+        if (lastFpsTimeNs == 0) lastFpsTimeNs = now;
+        frameCount++;
+        if (now - lastFpsTimeNs >= 1_000_000_000L) {
+            double fps = frameCount * 1_000_000_000.0 / (now - lastFpsTimeNs);
+            fpsLabel.setText(String.format("FPS: %.1f", fps));
+            frameCount = 0;
+            lastFpsTimeNs = now;
+        }
+    }
+
+    private void updateScene() {
+
+    }
+
+    private void onMouseWheelMoved(float wheel) {
+        org.rendering_app.math.Vector3D cameraPos = camera.getPosition();
+        float zoomSpeed = 3.0f;
+        float radius = cameraPos.length();
+        radius += wheel * zoomSpeed;
+        radius = Math.max(1.0f, radius);
+        cameraPos = cameraPos.normalize().multiply(radius);
+        camera.setPosition(cameraPos);
+        updateScene();
+    }
+
+    private void onLoadModel() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Open Model File");
+        File file = chooser.showOpenDialog(null);
+        if (file == null) return;
+
+        try {
+            Model model = OBJReader.read(file.getAbsolutePath());
+            models.add(model);
+            originalModels.add(new Model(model));
+            materials.add(new Material(false, false, false));
+            modelsList.getItems().add(file.getName());
+            selectedModel = models.size() - 1;
+            modelsList.getSelectionModel().select(selectedModel);
+            refreshModelsListTitles();
+            refreshLightsList();
+            statusBar.setText("Model loaded: " + file.getName());
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Failed to load model: " + ex.getMessage());
+        }
+    }
+
+    private void onSaveModel() {
+        showInfoDialog("OBJ save is TODO.");
+    }
+
+    private void onRemoveModel() {
+        int idx = modelsList.getSelectionModel().getSelectedIndex();
+        if (idx < 0) return;
+
+        models.remove(idx);
+        originalModels.remove(idx);
+        materials.remove(idx);
+        modelsList.getItems().remove(idx);
+
+        selectedModel = models.isEmpty() ? -1 : Math.min(idx, models.size() - 1);
+        if (selectedModel != -1) {
+            modelsList.getSelectionModel().select(selectedModel);
+        }
+        refreshModelsListTitles();
+        refreshLightsList();
+        updateScene();
+    }
+
+    private void onModelSelected() {
+        int idx = modelsList.getSelectionModel().getSelectedIndex();
+        if (idx < 0) return;
+        selectedModel = idx;
+        Material mat = materials.get(selectedModel);
+        showMeshCheckBox.setSelected(mat.isShowMesh());
+        showTextureCheckBox.setSelected(mat.isShowTexture());
+        showIlluminationCheckBox.setSelected(mat.isShowIllumination());
+        refreshLightsList();
+        updateScene();
+    }
+
+    private void onAddCamera() {
+        String s = showInputDialog("Position x,y,z:", "0,0,100");
+        if (s == null) return;
+        String[] parts = s.split(",");
+        if (parts.length != 3) {
+            showErrorDialog("Use x,y,z");
+            return;
+        }
+        addCameraToList(parts[0].trim(), parts[1].trim(), parts[2].trim());
     }
 
     private void addCameraToList(String x, String y, String z) {
         float fx = Float.parseFloat(x);
         float fy = Float.parseFloat(y);
         float fz = Float.parseFloat(z);
+        Camera cam = new Camera(
+                new org.rendering_app.math.Vector3D(fx, fy, fz),
+                new org.rendering_app.math.Vector3D(0, 0, 0),
+                1.0f, 1.0f, 0.01f, 1000.0f
+        );
+        cameras.add(cam);
+        camerasList.getItems().add(
+                String.format("Camera %d (%.1f, %.1f, %.1f)", cameras.size() - 1, fx, fy, fz)
+        );
     }
 
     private void onUseCamera() {
-
-    }
-
-    private void onLoadModel() {
-
-    }
-
-    private void onSaveModel() {
-
-    }
-
-    private void onRemoveModel() {
-
-    }
-
-    private void onAddCamera() {
-
+        int idx = camerasList.getSelectionModel().getSelectedIndex();
+        if (idx < 0 || idx >= cameras.size()) return;
+        this.camera = cameras.get(idx);
+        statusBar.setText("Using camera: " + camerasList.getItems().get(idx));
+        updateScene();
     }
 
     private void onRemoveCamera() {
-        
+        int idx = camerasList.getSelectionModel().getSelectedIndex();
+        if (idx < 0 || idx >= cameras.size()) return;
+        cameras.remove(idx);
+        camerasList.getItems().remove(idx);
+        for (int i = 0; i < camerasList.getItems().size(); i++) {
+            String s = camerasList.getItems().get(i);
+            s = s.replaceFirst("^Camera\\s+\\d+", "Camera " + i);
+            camerasList.getItems().set(i, s);
+        }
+        if (!cameras.isEmpty()) {
+            int newIdx = Math.min(idx, cameras.size() - 1);
+            camerasList.getSelectionModel().select(newIdx);
+            this.camera = cameras.get(newIdx);
+        }
+        updateScene();
     }
 
     private void onResetModel() {
-
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        models.set(selectedModel, new Model(originalModels.get(selectedModel)));
+        statusBar.setText("Model reset to original.");
+        updateScene();
     }
 
     private void onRotate() {
-
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        String s = showInputDialog("Angles x,y,z (deg):", "0,0,0");
+        if (s == null) return;
+        String[] a = s.split(",");
+        if (a.length != 3) {
+            showErrorDialog("Use x,y,z");
+            return;
+        }
+        try {
+            float rx = Float.parseFloat(a[0].trim());
+            float ry = Float.parseFloat(a[1].trim());
+            float rz = Float.parseFloat(a[2].trim());
+            org.rendering_app.math.GraphicConveyor.rotate(models.get(selectedModel), rx, ry, rz);
+            statusBar.setText(String.format("Rotated: %.1f, %.1f, %.1f", rx, ry, rz));
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Invalid angles.");
+        }
     }
 
     private void onScale() {
-
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        String s = showInputDialog("Scale x,y,z:", "1,1,1");
+        if (s == null) return;
+        String[] a = s.split(",");
+        if (a.length != 3) {
+            showErrorDialog("Use x,y,z");
+            return;
+        }
+        try {
+            float sx = Float.parseFloat(a[0].trim());
+            float sy = Float.parseFloat(a[1].trim());
+            float sz = Float.parseFloat(a[2].trim());
+            org.rendering_app.math.GraphicConveyor.scale(models.get(selectedModel), sx, sy, sz);
+            statusBar.setText(String.format("Scaled: %.2f, %.2f, %.2f", sx, sy, sz));
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Invalid scale.");
+        }
     }
 
     private void onTranslate() {
-
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        String s = showInputDialog("Translation x,y,z:", "0,0,0");
+        if (s == null) return;
+        String[] a = s.split(",");
+        if (a.length != 3) {
+            showErrorDialog("Use x,y,z");
+            return;
+        }
+        try {
+            float tx = Float.parseFloat(a[0].trim());
+            float ty = Float.parseFloat(a[1].trim());
+            float tz = Float.parseFloat(a[2].trim());
+            org.rendering_app.math.GraphicConveyor.translate(models.get(selectedModel), tx, ty, tz);
+            statusBar.setText(String.format("Translated: %.2f, %.2f, %.2f", tx, ty, tz));
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Invalid translation.");
+        }
     }
 
     private void onSelectColor() {
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        Material mat = materials.get(selectedModel);
+        java.awt.Color current = mat.getBaseColor();
+        Color fxStart = Color.rgb(current.getRed(), current.getGreen(), current.getBlue());
 
+        Color chosen = showColorDialog(fxStart);
+        if (chosen == null) return;
+
+        java.awt.Color awtColor = new java.awt.Color(
+                (float) chosen.getRed(),
+                (float) chosen.getGreen(),
+                (float) chosen.getBlue()
+        );
+        mat.setBaseColor(awtColor);
+        statusBar.setText("Color changed.");
+        updateScene();
     }
 
     private void onShowMeshChanged() {
-
+        if (selectedModel == -1) return;
+        materials.get(selectedModel).setShowMesh(showMeshCheckBox.isSelected());
+        updateScene();
     }
 
     private void onShowTextureChanged() {
-
+        if (selectedModel == -1) return;
+        materials.get(selectedModel).setShowTexture(showTextureCheckBox.isSelected());
+        updateScene();
     }
 
     private void onShowIlluminationChanged() {
-
+        if (selectedModel == -1) return;
+        materials.get(selectedModel).setShowIllumination(showIlluminationCheckBox.isSelected());
+        updateScene();
     }
 
     private void onAddTexture() {
-
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Open Texture File");
+        File f = chooser.showOpenDialog(null);
+        if (f == null) return;
+        try {
+            BufferedImage img = ImageIO.read(f);
+            Texture tex = new Texture(img);
+            Material mat = materials.get(selectedModel);
+            mat.setTexture(tex);
+            showTextureCheckBox.setSelected(true);
+            statusBar.setText("Texture loaded: " + f.getName());
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Failed to load texture: " + ex.getMessage());
+        }
     }
 
     private void onAddLight() {
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        Color fxColor = showColorDialog(Color.WHITE);
+        if (fxColor == null) return;
 
+        String s = showInputDialog("Light position x,y,z:", "0,0,0");
+        if (s == null) return;
+        String[] parts = s.split(",");
+        if (parts.length != 3) {
+            showErrorDialog("Use x,y,z");
+            return;
+        }
+        try {
+            float x = Float.parseFloat(parts[0].trim());
+            float y = Float.parseFloat(parts[1].trim());
+            float z = Float.parseFloat(parts[2].trim());
+
+            java.awt.Color awtColor = new java.awt.Color(
+                    (float) fxColor.getRed(),
+                    (float) fxColor.getGreen(),
+                    (float) fxColor.getBlue()
+            );
+
+            Light light = new Light(awtColor, new org.rendering_app.math.Vector3D(x, y, z));
+            materials.get(selectedModel).getLights().add(light);
+            refreshLightsList();
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Invalid light position.");
+        }
     }
 
     private void onRemoveLight() {
+        if (selectedModel == -1) return;
+        int idx = lightsList.getSelectionModel().getSelectedIndex();
+        if (idx < 0) return;
+        List<Light> ls = materials.get(selectedModel).getLights();
+        if (idx >= ls.size()) return;
+        ls.remove(idx);
+        refreshLightsList();
+        updateScene();
+    }
+
+    private void refreshLightsList() {
 
     }
 
-    private void showInfoDialog(String s) {
+    private void refreshModelsListTitles() {
 
+    }
+
+    private void showErrorDialog(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
+        alert.setHeaderText("Error");
+        alert.showAndWait();
+    }
+
+    private void showInfoDialog(String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, message, ButtonType.OK);
+        alert.setHeaderText("Info");
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private String showInputDialog(String header, String defaultValue) {
+        TextInputDialog dialog = new TextInputDialog(defaultValue);
+        dialog.setHeaderText(header);
+        return dialog.showAndWait().orElse(null);
+    }
+
+    private Color showColorDialog(Color initial) {
+        ColorPicker picker = new ColorPicker(initial);
+        Dialog<Color> dialog = new Dialog<>();
+        dialog.setTitle("Choose color");
+        dialog.getDialogPane().setContent(picker);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dialog.setResultConverter(bt -> bt == ButtonType.OK ? picker.getValue() : null);
+        return dialog.showAndWait().orElse(null);
     }
 }
