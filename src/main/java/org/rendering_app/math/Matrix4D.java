@@ -64,6 +64,24 @@ public class Matrix4D {
 
 
 
+    public Matrix4D multiply(Matrix4D other) {
+        float[][] result = new float[4][4];
+
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++){
+                float summa = 0.0f;
+
+                for (int k = 0; k < 4; k++) {
+                    summa += matrix[i][k] * other.matrix[k][j];
+                }
+
+                result[i][j] = summa;
+            }
+        }
+
+        return new Matrix4D(result);
+    }
+
 
     public static Matrix4D createIdentityMatrix() {
         float[][] identityMatrix = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
