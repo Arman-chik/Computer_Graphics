@@ -7,19 +7,25 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import org.rendering_app.obj_utils.OBJReader;
+import org.rendering_app.math.DepthBuffer;
+import org.rendering_app.math.PixelBuffer;
 import org.rendering_app.model.Model;
-import org.rendering_app.render.Material;
-import org.rendering_app.render.Light;
-import org.rendering_app.render.Texture;
+import org.rendering_app.obj_utils.OBJReader;
+import org.rendering_app.obj_utils.OBJWriter;
 import org.rendering_app.render.Camera;
+import org.rendering_app.render.Light;
+import org.rendering_app.render.Material;
+import org.rendering_app.render.RenderEngine;
+import org.rendering_app.render.Texture;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -32,19 +38,22 @@ public class MainWindow extends Application {
     private final ListView<String> modelsList = new ListView<>();
     private final ListView<String> camerasList = new ListView<>();
     private final ListView<String> lightsList = new ListView<>();
-    private final List<Model> models = new ArrayList<>();
-    private final List<Model> originalModels = new ArrayList<>();
-    private final List<Material> materials = new ArrayList<>();
-    private final List<Camera> cameras = new ArrayList<>();
     private final CheckBox showMeshCheckBox = new CheckBox("Show Mesh");
     private final CheckBox showTextureCheckBox = new CheckBox("Show Texture");
     private final CheckBox showIlluminationCheckBox = new CheckBox("Show Illumination");
     private final Label statusBar = new Label("Ready");
     private final Label fpsLabel = new Label("FPS: 0");
     private Canvas renderCanvas;
+    private final List<Model> models = new ArrayList<>();
+    private final List<Model> originalModels = new ArrayList<>();
+    private final List<Material> materials = new ArrayList<>();
+    private final List<Camera> cameras = new ArrayList<>();
     private Camera camera;
-    private long lastFpsTimeNs = 0;
+    private DepthBuffer depthBuffer;
+    private PixelBuffer pixelBuffer;
+    private RenderEngine renderEngine;
     private int selectedModel = -1;
+    private long lastFpsTimeNs = 0;
     private int frameCount = 0;
     private double lastX;
     private double lastY;
@@ -76,7 +85,6 @@ public class MainWindow extends Application {
         onUseCamera();
     }
 
-
     private MenuBar createMenuBar(Stage stage) {
         MenuBar bar = new MenuBar();
 
@@ -97,7 +105,6 @@ public class MainWindow extends Application {
         bar.getMenus().addAll(file, help);
         return bar;
     }
-
 
     private Pane createCenterArea() {
         HBox center = new HBox(10);
@@ -217,7 +224,6 @@ public class MainWindow extends Application {
         return status;
     }
 
-
     private void setupListeners() {
         ChangeListener<Number> modelListener = (obs, oldV, newV) -> onModelSelected();
         modelsList.getSelectionModel().selectedIndexProperty().addListener(modelListener);
@@ -281,7 +287,69 @@ public class MainWindow extends Application {
     }
 
     private void updateScene() {
+        if (models.isEmpty() || selectedModel == -1) {
+            clearCanvas();
+            return;
+        }
 
+        Model model = models.get(selectedModel);
+        Material material = materials.get(selectedModel);
+        if (model == null || material == null) return;
+
+        double width = renderCanvas.getWidth();
+        double height = renderCanvas.getHeight();
+        if (width <= 2 || height <= 2) return;
+
+        int w = (int) width;
+        int h = (int) height;
+
+        if (depthBuffer == null || depthBuffer.getWidth() != w || depthBuffer.getHeight() != h) {
+            depthBuffer = new DepthBuffer(w, h);
+            pixelBuffer = new PixelBuffer();
+        } else {
+            depthBuffer.clear();
+            pixelBuffer.clear();
+        }
+
+        camera.setAspectRatio((float) w / (float) h);
+        renderEngine = new RenderEngine(camera, model, w, h, depthBuffer, pixelBuffer, material);
+
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+
+        try {
+            java.awt.Graphics2D g2 = img.createGraphics();
+            g2.setColor(new java.awt.Color(45, 45, 45));
+            g2.fillRect(0, 0, w, h);
+            g2.dispose();
+
+            renderEngine.render();
+            pixelBuffer.forEach((p, color) -> {
+                int x = (int) p.getX();
+                int y = (int) p.getY();
+                if (x >= 0 && x < w && y >= 0 && y < h) {
+                    img.setRGB(x, y, color.getRGB());
+                }
+            });
+
+            drawBufferedImageOnCanvas(img);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            statusBar.setText("Render error: " + ex.getMessage());
+        }
+    }
+
+    private void drawBufferedImageOnCanvas(BufferedImage img) {
+        WritableImage fxImage = new WritableImage(img.getWidth(), img.getHeight());
+        javafx.embed.swing.SwingFXUtils.toFXImage(img, fxImage);
+        GraphicsContext gc = renderCanvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, renderCanvas.getWidth(), renderCanvas.getHeight());
+        gc.drawImage(fxImage, 0, 0);
+    }
+
+    private void clearCanvas() {
+        GraphicsContext gc = renderCanvas.getGraphicsContext2D();
+        gc.setFill(Color.rgb(45, 45, 45));
+        gc.fillRect(0, 0, renderCanvas.getWidth(), renderCanvas.getHeight());
     }
 
     private void onMouseWheelMoved(float wheel) {
@@ -302,7 +370,8 @@ public class MainWindow extends Application {
         if (file == null) return;
 
         try {
-            Model model = OBJReader.read(file.getAbsolutePath());
+            String content = java.nio.file.Files.readString(java.nio.file.Path.of(file.getAbsolutePath()));
+            Model model = OBJReader.read(content);
             models.add(model);
             originalModels.add(new Model(model));
             materials.add(new Material(false, false, false));
@@ -319,7 +388,36 @@ public class MainWindow extends Application {
     }
 
     private void onSaveModel() {
-        showInfoDialog("OBJ save is TODO.");
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save Model File");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("OBJ files (*.obj)", "*.obj")
+        );
+        File file = chooser.showSaveDialog(null);
+
+        if (file == null) return;
+
+        try {
+            OBJWriter.write(models.get(selectedModel), file.getAbsolutePath());
+            statusBar.setText("Model saved: " + file.getName());
+        } catch (Exception ex) {
+            showErrorDialog("Failed to save model: " + ex.getMessage());
+        }
+    }
+
+    private void onResetModel() {
+        if (selectedModel == -1) {
+            showInfoDialog("Select a model first.");
+            return;
+        }
+        models.set(selectedModel, new Model(originalModels.get(selectedModel)));
+        statusBar.setText("Model reset to original.");
+        updateScene();
     }
 
     private void onRemoveModel() {
@@ -350,6 +448,14 @@ public class MainWindow extends Application {
         showIlluminationCheckBox.setSelected(mat.isShowIllumination());
         refreshLightsList();
         updateScene();
+    }
+
+    private void refreshModelsListTitles() {
+        for (int i = 0; i < modelsList.getItems().size(); i++) {
+            String raw = modelsList.getItems().get(i);
+            String cleaned = raw.replaceFirst("^Model\\s+\\d+\\s*:\\s*", "");
+            modelsList.getItems().set(i, "Model " + i + ": " + cleaned);
+        }
     }
 
     private void onAddCamera() {
@@ -401,16 +507,6 @@ public class MainWindow extends Application {
             camerasList.getSelectionModel().select(newIdx);
             this.camera = cameras.get(newIdx);
         }
-        updateScene();
-    }
-
-    private void onResetModel() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
-        models.set(selectedModel, new Model(originalModels.get(selectedModel)));
-        statusBar.setText("Model reset to original.");
         updateScene();
     }
 
@@ -595,11 +691,16 @@ public class MainWindow extends Application {
     }
 
     private void refreshLightsList() {
-
-    }
-
-    private void refreshModelsListTitles() {
-
+        lightsList.getItems().clear();
+        if (selectedModel == -1) return;
+        List<Light> ls = materials.get(selectedModel).getLights();
+        for (int i = 0; i < ls.size(); i++) {
+            Light l = ls.get(i);
+            org.rendering_app.math.Vector3D p = l.getPosition();
+            lightsList.getItems().add(
+                    String.format("Light %d (%.1f, %.1f, %.1f)", i, p.getX(), p.getY(), p.getZ())
+            );
+        }
     }
 
     private void showErrorDialog(String message) {
