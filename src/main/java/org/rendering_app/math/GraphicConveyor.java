@@ -1,6 +1,33 @@
 package org.rendering_app.math;
 
+import org.rendering_app.model.Model;
+
 public class GraphicConveyor {
+
+
+
+
+    public static void translate(Model model, float T_x, float T_y, float T_z) {
+        Matrix4D translateMatrix = getTranslateMatrix(T_x, T_y, T_z);
+
+        for (Vector3D vertex :  model.getVertices()){
+
+            Vector4D v4 = MathCast.toVector4D(vertex);
+            Vector4D t = translateMatrix.multiply(v4);
+
+            float w = t.getW();
+
+            if (w == 0){
+                w = 1.0f;
+            }
+
+            vertex.setX(t.getX() / w);
+            vertex.setY(t.getY() / w);
+            vertex.setZ(t.getZ() / w);
+        }
+    }
+
+
 
 
     private static Matrix4D getRotateMatrix(float phiDegrees, float psiDegrees, float thetaDegrees) {
