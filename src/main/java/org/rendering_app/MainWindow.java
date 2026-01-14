@@ -2,7 +2,6 @@ package org.rendering_app;
 
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
-import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Scene;
@@ -38,6 +37,7 @@ public class MainWindow extends Application {
     private final ListView<String> modelsList = new ListView<>();
     private final ListView<String> camerasList = new ListView<>();
     private final ListView<String> lightsList = new ListView<>();
+    private final java.util.LinkedHashSet<Integer> activeModels = new java.util.LinkedHashSet<>();
     private final CheckBox showMeshCheckBox = new CheckBox("Show Mesh");
     private final CheckBox showTextureCheckBox = new CheckBox("Show Texture");
     private final CheckBox showIlluminationCheckBox = new CheckBox("Show Illumination");
@@ -181,6 +181,8 @@ public class MainWindow extends Application {
 
         Button resetBtn = new Button("Reset");
         resetBtn.setOnAction(e -> onResetModel());
+        Button deletePolysBtn = new Button("Delete polygons");
+        deletePolysBtn.setOnAction(e -> onDeletePolygons());
         Button rotateBtn = new Button("Rotate");
         rotateBtn.setOnAction(e -> onRotate());
         Button scaleBtn = new Button("Scale");
@@ -196,7 +198,6 @@ public class MainWindow extends Application {
 
         Button addTextureBtn = new Button("Add Texture");
         addTextureBtn.setOnAction(e -> onAddTexture());
-
         Label lightsLabel = new Label("Light sources");
         Button addLight = new Button("+");
         addLight.setOnAction(e -> onAddLight());
@@ -207,7 +208,7 @@ public class MainWindow extends Application {
 
         right.getChildren().addAll(
                 title,
-                resetBtn, rotateBtn, scaleBtn, translateBtn, colorBtn,
+                resetBtn, deletePolysBtn, rotateBtn, scaleBtn, translateBtn, colorBtn,
                 new Separator(Orientation.HORIZONTAL),
                 showMeshCheckBox, showTextureCheckBox, showIlluminationCheckBox, addTextureBtn,
                 new Separator(Orientation.HORIZONTAL),
@@ -225,8 +226,10 @@ public class MainWindow extends Application {
     }
 
     private void setupListeners() {
-        ChangeListener<Number> modelListener = (obs, oldV, newV) -> onModelSelected();
-        modelsList.getSelectionModel().selectedIndexProperty().addListener(modelListener);
+        modelsList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        modelsList.getSelectionModel().getSelectedIndices().addListener(
+                (javafx.collections.ListChangeListener<? super Integer>) c -> onModelsSelectionChanged()
+        );
 
         renderCanvas.setOnMousePressed(e -> {
             lastX = e.getX();
@@ -237,7 +240,6 @@ public class MainWindow extends Application {
             if (e.getButton() != MouseButton.PRIMARY && !e.isPrimaryButtonDown()) return;
             double dx = e.getX() - lastX;
             double dy = e.getY() - lastY;
-
             org.rendering_app.math.Vector3D cameraPos = camera.getPosition();
             float radius = cameraPos.length();
             float theta = (float) Math.atan2(cameraPos.getZ(), cameraPos.getX());
@@ -249,12 +251,11 @@ public class MainWindow extends Application {
             float newX = radius * (float) (Math.sin(phi) * Math.cos(theta));
             float newY = radius * (float) (Math.cos(phi));
             float newZ = radius * (float) (Math.sin(phi) * Math.sin(theta));
-
             camera.setPosition(new org.rendering_app.math.Vector3D(newX, newY, newZ));
             camera.setTarget(new org.rendering_app.math.Vector3D(0, 0, 0));
-
             lastX = e.getX();
             lastY = e.getY();
+
             updateScene();
         });
 
@@ -287,21 +288,17 @@ public class MainWindow extends Application {
     }
 
     private void updateScene() {
-        if (models.isEmpty() || selectedModel == -1) {
-            clearCanvas();
-            return;
-        }
-
-        Model model = models.get(selectedModel);
-        Material material = materials.get(selectedModel);
-        if (model == null || material == null) return;
-
         double width = renderCanvas.getWidth();
         double height = renderCanvas.getHeight();
         if (width <= 2 || height <= 2) return;
 
         int w = (int) width;
         int h = (int) height;
+
+        if (models.isEmpty()) {
+            clearCanvas();
+            return;
+        }
 
         if (depthBuffer == null || depthBuffer.getWidth() != w || depthBuffer.getHeight() != h) {
             depthBuffer = new DepthBuffer(w, h);
@@ -312,17 +309,23 @@ public class MainWindow extends Application {
         }
 
         camera.setAspectRatio((float) w / (float) h);
-        renderEngine = new RenderEngine(camera, model, w, h, depthBuffer, pixelBuffer, material);
 
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-
         try {
             java.awt.Graphics2D g2 = img.createGraphics();
             g2.setColor(new java.awt.Color(45, 45, 45));
             g2.fillRect(0, 0, w, h);
             g2.dispose();
 
-            renderEngine.render();
+            for (int i = 0; i < models.size(); i++) {
+                Model model = models.get(i);
+                Material material = materials.get(i);
+                if (model == null || material == null) continue;
+
+                renderEngine = new RenderEngine(camera, model, w, h, depthBuffer, pixelBuffer, material);
+                renderEngine.render();
+            }
+
             pixelBuffer.forEach((p, color) -> {
                 int x = (int) p.getX();
                 int y = (int) p.getY();
@@ -351,6 +354,29 @@ public class MainWindow extends Application {
         gc.setFill(Color.rgb(45, 45, 45));
         gc.fillRect(0, 0, renderCanvas.getWidth(), renderCanvas.getHeight());
     }
+
+    private void onModelsSelectionChanged() {
+        activeModels.clear();
+        activeModels.addAll(modelsList.getSelectionModel().getSelectedIndices());
+
+        if (activeModels.isEmpty()) {
+            selectedModel = -1;
+            lightsList.getItems().clear();
+            updateScene();
+            return;
+        }
+
+        selectedModel = activeModels.iterator().next();
+
+        Material mat = materials.get(selectedModel);
+        showMeshCheckBox.setSelected(mat.isShowMesh());
+        showTextureCheckBox.setSelected(mat.isShowTexture());
+        showIlluminationCheckBox.setSelected(mat.isShowIllumination());
+
+        refreshLightsList();
+        updateScene();
+    }
+
 
     private void onMouseWheelMoved(float wheel) {
         org.rendering_app.math.Vector3D cameraPos = camera.getPosition();
@@ -388,36 +414,105 @@ public class MainWindow extends Application {
     }
 
     private void onSaveModel() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
+        if (!hasActiveModels()) return;
+
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle("Choose folder to save selected models");
+        File dir = chooser.showDialog(null);
+        if (dir == null) return;
+
+        String prefix = showInputDialog("Prefix for filenames:", "export");
+        if (prefix == null) return;
+
+        prefix = prefix.trim();
+        if (prefix.isEmpty()) {
+            showErrorDialog("Prefix cannot be empty.");
             return;
         }
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Model File");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("OBJ files (*.obj)", "*.obj")
-        );
-        File file = chooser.showSaveDialog(null);
+        prefix = prefix.replaceAll("[\\\\/:*?\"<>|]", "_");
 
-        if (file == null) return;
+        int saved = 0;
 
         try {
-            OBJWriter.write(models.get(selectedModel), file.getAbsolutePath());
-            statusBar.setText("Model saved: " + file.getName());
+            for (int idx : activeModels) {
+                String rawName = String.valueOf(modelsList.getItems().get(idx));
+
+                String cleaned = rawName.replaceFirst("^Model\\s+\\d+\\s*:\\s*", "");
+
+                String base = cleaned.replaceAll("(?i)\\.obj$", "").trim();
+                base = base.replaceAll("[\\\\/:*?\"<>|]", "_");
+                if (base.isEmpty()) base = "model_" + idx;
+
+                String nameNoExt = prefix + "_" + base;
+                File out = new File(dir, nameNoExt + ".obj");
+
+                int n = 2;
+                while (out.exists()) {
+                    out = new File(dir, nameNoExt + "_" + n + ".obj");
+                    n++;
+                }
+
+                OBJWriter.write(models.get(idx), out.getAbsolutePath());
+                saved++;
+            }
+
+            statusBar.setText("Saved " + saved + " model(s) to: " + dir.getAbsolutePath());
         } catch (Exception ex) {
-            showErrorDialog("Failed to save model: " + ex.getMessage());
+            showErrorDialog("Failed to save models: " + ex.getMessage());
         }
     }
 
     private void onResetModel() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
+        if (!hasActiveModels()) return;
+
+        for (int idx : activeModels) {
+            models.set(idx, new Model(originalModels.get(idx)));
+        }
+
+        statusBar.setText("Model(s) reset to original.");
+        updateScene();
+    }
+
+    private void onDeletePolygons() {
+        if (!hasActiveModels()) return;
+
+        String s = showInputDialog("Polygon index or range:", "0-10");
+        if (s == null) return;
+
+        int from;
+        int to;
+
+        try {
+            int[] r = org.rendering_app.model.ModelPolygonRemover.parseRange(s);
+            from = r[0];
+            to = r[1];
+            if (from < 0 || to < 0) {
+                showErrorDialog("Polygon index must be >= 0.");
+                return;
+            }
+        } catch (Exception ex) {
+            showErrorDialog("Example: 5 or 5-12.");
             return;
         }
-        models.set(selectedModel, new Model(originalModels.get(selectedModel)));
-        statusBar.setText("Model reset to original.");
-        updateScene();
+
+        int totalRemoved = 0;
+
+        try {
+            for (int idx : activeModels) {
+                Model m = models.get(idx);
+
+                int removed = org.rendering_app.model.ModelPolygonRemover
+                        .deletePolygonsRange(m, from, to);
+
+                totalRemoved += removed;
+            }
+
+            statusBar.setText("Removed polygons: " + totalRemoved);
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Failed to delete polygons: " + ex.getMessage());
+        }
     }
 
     private void onRemoveModel() {
@@ -436,6 +531,7 @@ public class MainWindow extends Application {
         refreshModelsListTitles();
         refreshLightsList();
         updateScene();
+        onModelsSelectionChanged();
     }
 
     private void onModelSelected() {
@@ -511,23 +607,28 @@ public class MainWindow extends Application {
     }
 
     private void onRotate() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
+        if (!hasActiveModels()) return;
+
         String s = showInputDialog("Angles x,y,z (deg):", "0,0,0");
         if (s == null) return;
+
         String[] a = s.split(",");
         if (a.length != 3) {
             showErrorDialog("Use x,y,z");
             return;
         }
+
         try {
             float rx = Float.parseFloat(a[0].trim());
             float ry = Float.parseFloat(a[1].trim());
             float rz = Float.parseFloat(a[2].trim());
-            org.rendering_app.math.GraphicConveyor.rotate(models.get(selectedModel), rx, ry, rz);
-            statusBar.setText(String.format("Rotated: %.1f, %.1f, %.1f", rx, ry, rz));
+
+            for (int idx : activeModels) {
+                org.rendering_app.math.GraphicConveyor.rotate(models.get(idx), rx, ry, rz);
+            }
+
+            statusBar.setText(String.format("Rotated %d model(s): %.1f, %.1f, %.1f",
+                    activeModels.size(), rx, ry, rz));
             updateScene();
         } catch (Exception ex) {
             showErrorDialog("Invalid angles.");
@@ -535,23 +636,28 @@ public class MainWindow extends Application {
     }
 
     private void onScale() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
+        if (!hasActiveModels()) return;
+
         String s = showInputDialog("Scale x,y,z:", "1,1,1");
         if (s == null) return;
+
         String[] a = s.split(",");
         if (a.length != 3) {
             showErrorDialog("Use x,y,z");
             return;
         }
+
         try {
             float sx = Float.parseFloat(a[0].trim());
             float sy = Float.parseFloat(a[1].trim());
             float sz = Float.parseFloat(a[2].trim());
-            org.rendering_app.math.GraphicConveyor.scale(models.get(selectedModel), sx, sy, sz);
-            statusBar.setText(String.format("Scaled: %.2f, %.2f, %.2f", sx, sy, sz));
+
+            for (int idx : activeModels) {
+                org.rendering_app.math.GraphicConveyor.scale(models.get(idx), sx, sy, sz);
+            }
+
+            statusBar.setText(String.format("Scaled %d model(s): %.2f, %.2f, %.2f",
+                    activeModels.size(), sx, sy, sz));
             updateScene();
         } catch (Exception ex) {
             showErrorDialog("Invalid scale.");
@@ -559,23 +665,28 @@ public class MainWindow extends Application {
     }
 
     private void onTranslate() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
+        if (!hasActiveModels()) return;
+
         String s = showInputDialog("Translation x,y,z:", "0,0,0");
         if (s == null) return;
+
         String[] a = s.split(",");
         if (a.length != 3) {
             showErrorDialog("Use x,y,z");
             return;
         }
+
         try {
             float tx = Float.parseFloat(a[0].trim());
             float ty = Float.parseFloat(a[1].trim());
             float tz = Float.parseFloat(a[2].trim());
-            org.rendering_app.math.GraphicConveyor.translate(models.get(selectedModel), tx, ty, tz);
-            statusBar.setText(String.format("Translated: %.2f, %.2f, %.2f", tx, ty, tz));
+
+            for (int idx : activeModels) {
+                org.rendering_app.math.GraphicConveyor.translate(models.get(idx), tx, ty, tz);
+            }
+
+            statusBar.setText(String.format("Translated %d model(s): %.2f, %.2f, %.2f",
+                    activeModels.size(), tx, ty, tz));
             updateScene();
         } catch (Exception ex) {
             showErrorDialog("Invalid translation.");
@@ -605,20 +716,23 @@ public class MainWindow extends Application {
     }
 
     private void onShowMeshChanged() {
-        if (selectedModel == -1) return;
-        materials.get(selectedModel).setShowMesh(showMeshCheckBox.isSelected());
+        if (!hasActiveModels()) return;
+        boolean v = showMeshCheckBox.isSelected();
+        for (int idx : activeModels) materials.get(idx).setShowMesh(v);
         updateScene();
     }
 
     private void onShowTextureChanged() {
-        if (selectedModel == -1) return;
-        materials.get(selectedModel).setShowTexture(showTextureCheckBox.isSelected());
+        if (!hasActiveModels()) return;
+        boolean v = showTextureCheckBox.isSelected();
+        for (int idx : activeModels) materials.get(idx).setShowTexture(v);
         updateScene();
     }
 
     private void onShowIlluminationChanged() {
-        if (selectedModel == -1) return;
-        materials.get(selectedModel).setShowIllumination(showIlluminationCheckBox.isSelected());
+        if (!hasActiveModels()) return;
+        boolean v = showIlluminationCheckBox.isSelected();
+        for (int idx : activeModels) materials.get(idx).setShowIllumination(v);
         updateScene();
     }
 
@@ -701,6 +815,14 @@ public class MainWindow extends Application {
                     String.format("Light %d (%.1f, %.1f, %.1f)", i, p.getX(), p.getY(), p.getZ())
             );
         }
+    }
+
+    private boolean hasActiveModels() {
+        if (activeModels.isEmpty()) {
+            showInfoDialog("Select at least one model first.");
+            return false;
+        }
+        return true;
     }
 
     private void showErrorDialog(String message) {
