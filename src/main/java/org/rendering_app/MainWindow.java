@@ -300,6 +300,11 @@ public class MainWindow extends Application {
             return;
         }
 
+        if (activeModels.isEmpty()) {
+            clearCanvas();
+            return;
+        }
+
         if (depthBuffer == null || depthBuffer.getWidth() != w || depthBuffer.getHeight() != h) {
             depthBuffer = new DepthBuffer(w, h);
             pixelBuffer = new PixelBuffer();
@@ -311,15 +316,16 @@ public class MainWindow extends Application {
         camera.setAspectRatio((float) w / (float) h);
 
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+
         try {
             java.awt.Graphics2D g2 = img.createGraphics();
             g2.setColor(new java.awt.Color(45, 45, 45));
             g2.fillRect(0, 0, w, h);
             g2.dispose();
 
-            for (int i = 0; i < models.size(); i++) {
-                Model model = models.get(i);
-                Material material = materials.get(i);
+            for (int i : activeModels) {
+                Model model = (Model) models.get(i);
+                Material material = (Material) materials.get(i);
                 if (model == null || material == null) continue;
 
                 renderEngine = new RenderEngine(camera, model, w, h, depthBuffer, pixelBuffer, material);
@@ -468,9 +474,11 @@ public class MainWindow extends Application {
 
         for (int idx : activeModels) {
             models.set(idx, new Model(originalModels.get(idx)));
+            materials.set(idx, new Material(false, false, false));
         }
 
         statusBar.setText("Model(s) reset to original.");
+        refreshLightsList();
         updateScene();
     }
 
@@ -694,14 +702,12 @@ public class MainWindow extends Application {
     }
 
     private void onSelectColor() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
-        Material mat = materials.get(selectedModel);
-        java.awt.Color current = mat.getBaseColor();
-        Color fxStart = Color.rgb(current.getRed(), current.getGreen(), current.getBlue());
+        if (!hasActiveModels()) return;
 
+        int firstIdx = activeModels.iterator().next();
+        Material firstMat = materials.get(firstIdx);
+        java.awt.Color current = firstMat.getBaseColor();
+        Color fxStart = Color.rgb(current.getRed(), current.getGreen(), current.getBlue());
         Color chosen = showColorDialog(fxStart);
         if (chosen == null) return;
 
@@ -710,8 +716,12 @@ public class MainWindow extends Application {
                 (float) chosen.getGreen(),
                 (float) chosen.getBlue()
         );
-        mat.setBaseColor(awtColor);
-        statusBar.setText("Color changed.");
+
+        for (int idx : activeModels) {
+            materials.get(idx).setBaseColor(awtColor);
+        }
+
+        statusBar.setText("Color changed for " + activeModels.size() + " model(s).");
         updateScene();
     }
 
@@ -737,42 +747,46 @@ public class MainWindow extends Application {
     }
 
     private void onAddTexture() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
+        if (!ensureHasActiveModels()) return;
+
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Open Texture File");
         File f = chooser.showOpenDialog(null);
         if (f == null) return;
+
         try {
             BufferedImage img = ImageIO.read(f);
             Texture tex = new Texture(img);
-            Material mat = materials.get(selectedModel);
-            mat.setTexture(tex);
+
+            for (int idx : activeModels) {
+                materials.get(idx).setTexture(tex);
+                materials.get(idx).setShowTexture(true);
+            }
+
             showTextureCheckBox.setSelected(true);
-            statusBar.setText("Texture loaded: " + f.getName());
+            statusBar.setText("Texture loaded for " + activeModels.size() + " model(s): " + f.getName());
             updateScene();
+
         } catch (Exception ex) {
             showErrorDialog("Failed to load texture: " + ex.getMessage());
         }
     }
 
     private void onAddLight() {
-        if (selectedModel == -1) {
-            showInfoDialog("Select a model first.");
-            return;
-        }
+        if (!hasActiveModels()) return;
+
         Color fxColor = showColorDialog(Color.WHITE);
         if (fxColor == null) return;
 
         String s = showInputDialog("Light position x,y,z:", "0,0,0");
         if (s == null) return;
+
         String[] parts = s.split(",");
         if (parts.length != 3) {
             showErrorDialog("Use x,y,z");
             return;
         }
+
         try {
             float x = Float.parseFloat(parts[0].trim());
             float y = Float.parseFloat(parts[1].trim());
@@ -784,10 +798,16 @@ public class MainWindow extends Application {
                     (float) fxColor.getBlue()
             );
 
-            Light light = new Light(awtColor, new org.rendering_app.math.Vector3D(x, y, z));
-            materials.get(selectedModel).getLights().add(light);
+            for (int idx : activeModels) {
+                materials.get(idx).getLights().add(
+                        new Light(awtColor, new org.rendering_app.math.Vector3D(x, y, z))
+                );
+            }
+
             refreshLightsList();
+            statusBar.setText("Light added to " + activeModels.size() + " model(s).");
             updateScene();
+
         } catch (Exception ex) {
             showErrorDialog("Invalid light position.");
         }
