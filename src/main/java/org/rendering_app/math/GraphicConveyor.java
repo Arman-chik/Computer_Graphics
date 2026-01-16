@@ -102,8 +102,8 @@ public class GraphicConveyor {
 
         // Вращение вокруг z
         float[][] rz = {
-                {(float) Math.cos(phi), (float) Math.sin(phi), 0, 0},
-                {-(float) Math.sin(phi), (float) Math.cos(phi), 0, 0},
+                {(float) Math.cos(phi), -(float) Math.sin(phi), 0, 0},
+                {(float) Math.sin(phi), (float) Math.cos(phi), 0, 0},
                 {0, 0, 1, 0},
                 {0, 0, 0, 1}
         };
