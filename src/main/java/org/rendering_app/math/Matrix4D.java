@@ -40,27 +40,34 @@ public class Matrix4D {
     }
 
 
+    public static Vector3D multiplyMatrix4DByVector3D(Matrix4D matrix, Vector3D vertex) {
 
-    public static Vector3D multiplyMatrix4ByVector3D(Matrix4D matrix, Vector3D vertex) {
-        float x = vertex.getX() * matrix.getElement(0, 0) + vertex.getY() * matrix.getElement(0, 1) +
-                vertex.getZ() * matrix.getElement(0, 2) + matrix.getElement(0, 3);
+        float x = vertex.getX();
+        float y = vertex.getY();
+        float z = vertex.getZ();
 
-        float y = vertex.getX() * matrix.getElement(1, 0) + vertex.getY() * matrix.getElement(1, 1) +
-                vertex.getZ() * matrix.getElement(1, 2) + matrix.getElement(1, 3);
+        float w = 1.0f;
 
-        float z = vertex.getX() * matrix.getElement(2, 0) + vertex.getY() * matrix.getElement(2, 1) +
-                vertex.getZ() * matrix.getElement(2, 2) + matrix.getElement(2, 3);
+        float resX = matrix.matrix[0][0] * x + matrix.matrix[0][1] * y
+                + matrix.matrix[0][2] * z + matrix.matrix[0][3] * w;
 
-        float w = vertex.getX() * matrix.getElement(3, 0) + vertex.getY() * matrix.getElement(3, 1) +
-                vertex.getZ() * matrix.getElement(3, 2) + matrix.getElement(3, 3);
+        float resY = matrix.matrix[1][0] * x + matrix.matrix[1][1] * y
+                + matrix.matrix[1][2] * z + matrix.matrix[1][3] * w;
 
+        float resZ = matrix.matrix[2][0] * x + matrix.matrix[2][1] * y
+                + matrix.matrix[2][2] * z + matrix.matrix[2][3] * w;
 
-        if (Math.abs(w) < 1e-6f) {  // w блихок к нулю
-            return new Vector3D(x, y, z);
+        float resW = matrix.matrix[3][0] * x + matrix.matrix[3][1] * y
+                + matrix.matrix[3][2] * z + matrix.matrix[3][3] * w;
+
+        if (resW == 0 || resW == 1.0f) {
+            return new Vector3D(resX, resY, resZ);
         }
 
-        return new Vector3D(x / w, y / w, z / w);
+
+        return new Vector3D(resX / resW, resY/ resW, resZ / resW);
     }
+
 
 
 

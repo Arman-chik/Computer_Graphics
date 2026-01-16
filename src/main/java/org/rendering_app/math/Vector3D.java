@@ -94,7 +94,21 @@ public class Vector3D {
     }
 
 
+    public float dot(Vector3D other) {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
+    }
 
+    public Vector3D cross(Vector3D other) {
+        return new Vector3D(
+                this.y * other.z - this.z * other.y,
+                this.z * other.x - this.x * other.z,
+                this.x * other.y - this.y * other.x
+        );
+    }
+
+    public static Vector3D cross(Vector3D v1, Vector3D v2) {
+        return v1.cross(v2);
+    }
 
     @Override
     public boolean equals(Object obj) {
@@ -115,5 +129,9 @@ public class Vector3D {
     @Override
     public int hashCode() {
         return Float.hashCode(x) ^  Float.hashCode(y) ^ Float.hashCode(z);
+    }
+
+    public String toString() {
+        return String.format("Vector3D(%.2f, %.2f, %.2f)", x, y, z);
     }
 }
