@@ -15,7 +15,7 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import org.rendering_app.math.DepthBuffer;
+import org.rendering_app.math.Z_Buffer;
 import org.rendering_app.math.PixelBuffer;
 import org.rendering_app.model.Model;
 import org.rendering_app.obj_utils.OBJReader;
@@ -49,7 +49,7 @@ public class MainWindow extends Application {
     private final List<Material> materials = new ArrayList<>();
     private final List<Camera> cameras = new ArrayList<>();
     private Camera camera;
-    private DepthBuffer depthBuffer;
+    private Z_Buffer zBuffer;
     private PixelBuffer pixelBuffer;
     private RenderEngine renderEngine;
     private int selectedModel = -1;
@@ -305,11 +305,11 @@ public class MainWindow extends Application {
             return;
         }
 
-        if (depthBuffer == null || depthBuffer.getWidth() != w || depthBuffer.getHeight() != h) {
-            depthBuffer = new DepthBuffer(w, h);
+        if (zBuffer == null || zBuffer.getWidth() != w || zBuffer.getHeight() != h) {
+            zBuffer = new zBuffer(w, h);
             pixelBuffer = new PixelBuffer();
         } else {
-            depthBuffer.clear();
+            zBuffer.clear();
             pixelBuffer.clear();
         }
 
@@ -328,7 +328,7 @@ public class MainWindow extends Application {
                 Material material = (Material) materials.get(i);
                 if (model == null || material == null) continue;
 
-                renderEngine = new RenderEngine(camera, model, w, h, depthBuffer, pixelBuffer, material);
+                renderEngine = new RenderEngine(camera, model, w, h, zBuffer, pixelBuffer, material);
                 renderEngine.render();
             }
 
