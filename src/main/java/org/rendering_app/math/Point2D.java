@@ -2,16 +2,16 @@ package org.rendering_app.math;
 
 public class Point2D {
     
-    private double x;
-    private double y;
+    private float x;
+    private float y;
 
 
     public Point2D() {
-        this(0.0, 0.0);
+        this(0.0f, 0.0f);
     }
 
 
-    public Point2D(double x, double y) {
+    public Point2D(float x, float y) {
         this.x = x;
         this.y = y;
     }
@@ -23,27 +23,37 @@ public class Point2D {
 
 
 
-    public double getX() {
+    public float getX() {
         return x;
     }
 
-    public double getY() {
+    public float getY() {
         return y;
     }
 
-    public void setX(double x) {
+    public void setX(float x) {
         this.x = x;
     }
 
-    public void setY(double y) {
+    public void setY(float y) {
         this.y = y;
     }
 
 
 
-    public void set(double x, double y) {
+    public void set(float x, float y) {
         this.x = x;
         this.y = y;
+    }
+
+    @Override
+    public int hashCode() {
+        return Float.hashCode(x) ^ Float.hashCode(y);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Point2D(%.2f, %.2f)", x, y);
     }
 
 }

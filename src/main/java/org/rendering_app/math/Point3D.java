@@ -58,6 +58,24 @@ public class Point3D {
         this.y = y;
         this.z = z;
     }
-    
+
+    public float dot(Point3D other) {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
+    }
+
+
+    public Point3D add(Point3D other) {
+        return new Point3D(this.x + other.x, this.y + other.y, this.z + other.z);
+    }
+
+    public Point3D subtract(Point3D other) {
+        return new Point3D(this.x - other.x, this.y - other.y, this.z - other.z);
+    }
+
+
+    @Override
+    public String toString() {
+        return String.format("Point3D(%.2f, %.2f, %.2f)", x, y, z);
+    }
     
 }

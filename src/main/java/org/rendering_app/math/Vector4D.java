@@ -79,7 +79,9 @@ public class Vector4D {
     }
 
 
-
+    public float dot(Vector4D other) {
+        return this.x * other.x + this.y * other.y + this.z * other.z + this.w * other.w;
+    }
 
 
     public float scalarProduct(Vector4D other) {
@@ -128,4 +130,9 @@ public class Vector4D {
         return Float.hashCode(x) ^ Float.hashCode(y) ^ Float.hashCode(z) ^ Float.hashCode(w);
     }
 
+
+    @Override
+    public String toString() {
+        return String.format("Vector4D(%.2f, %.2f, %.2f, %.2f)", x, y, z, w);
+    }
 }

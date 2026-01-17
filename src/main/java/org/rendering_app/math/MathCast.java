@@ -1,16 +1,21 @@
 package org.rendering_app.math;
 
 public class MathCast {
-    public static Point2D toPoint2D() {
-        return new Point2D();
+
+    public static Point2D toPoint2D(Vector3D vertex, int width, int height) {
+        return new Point2D(vertex.getX() * width + width / 2.0f, -vertex.getY() * height + height / 2.0f);
     }
 
-    public static Point3D toPoint3D() {
-        return new Point3D();
+    public static Point3D toPoint3D(Vector3D vertex, int width, int height) {
+        return new Point3D(vertex.getX() * width + width / 2.0f, -vertex.getY() * height + height / 2.0f, vertex.getZ());
     }
 
-    public static Vector3D toVector3D() {
-        return new Vector3D();
+    public static Vector3D toVector3D(Vector4D v) {
+        if (v.getW() == 0) {
+            return new Vector3D(v.getX(), v.getY(), v.getZ());
+        }
+
+        return new Vector3D(v.getX() / v.getW(), v.getY() / v.getW(), v.getZ() / v.getW());
     }
 
 
