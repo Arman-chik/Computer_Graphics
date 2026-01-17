@@ -18,11 +18,11 @@ import javafx.stage.Stage;
 import org.rendering_app.math.Z_Buffer;
 import org.rendering_app.math.PixelBuffer;
 import org.rendering_app.model.Model;
+import org.rendering_app.model.Material;
 import org.rendering_app.obj_utils.OBJReader;
 import org.rendering_app.obj_utils.OBJWriter;
 import org.rendering_app.render.Camera;
 import org.rendering_app.render.Light;
-import org.rendering_app.render.Material;
 import org.rendering_app.render.RenderEngine;
 import org.rendering_app.render.Texture;
 
@@ -540,18 +540,6 @@ public class MainWindow extends Application {
         refreshLightsList();
         updateScene();
         onModelsSelectionChanged();
-    }
-
-    private void onModelSelected() {
-        int idx = modelsList.getSelectionModel().getSelectedIndex();
-        if (idx < 0) return;
-        selectedModel = idx;
-        Material mat = materials.get(selectedModel);
-        showMeshCheckBox.setSelected(mat.isShowMesh());
-        showTextureCheckBox.setSelected(mat.isShowTexture());
-        showIlluminationCheckBox.setSelected(mat.isShowIllumination());
-        refreshLightsList();
-        updateScene();
     }
 
     private void refreshModelsListTitles() {
