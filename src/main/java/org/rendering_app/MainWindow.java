@@ -306,7 +306,7 @@ public class MainWindow extends Application {
         }
 
         if (zBuffer == null || zBuffer.getWidth() != w || zBuffer.getHeight() != h) {
-            zBuffer = new zBuffer(w, h);
+            zBuffer = new Z_Buffer(w, h);
             pixelBuffer = new PixelBuffer();
         } else {
             zBuffer.clear();
@@ -735,7 +735,7 @@ public class MainWindow extends Application {
     }
 
     private void onAddTexture() {
-        if (!ensureHasActiveModels()) return;
+        if (!hasActiveModels()) return;
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Open Texture File");
