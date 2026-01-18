@@ -98,8 +98,9 @@ public class Vector4D {
 
     public Vector4D normalize() {
         float len = length();
+        float epsilon = 1e-6f;
 
-        if (len == 0) {
+        if (Math.abs(len) < epsilon) {
             return new Vector4D(0, 0, 0, 0);
         }
 

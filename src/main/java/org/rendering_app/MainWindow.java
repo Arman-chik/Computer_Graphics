@@ -32,7 +32,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainWindow extends Application {
+//public class MainWindow extends Application {
 
     private final ListView<String> modelsList = new ListView<>();
     private final ListView<String> camerasList = new ListView<>();

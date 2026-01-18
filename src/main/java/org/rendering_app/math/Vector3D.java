@@ -79,8 +79,9 @@ public class Vector3D {
 
     public Vector3D normalize() {
         float len = length();
+        float epsilon = 1e-6f;
 
-        if (len == 0) {
+        if (Math.abs(len) < epsilon) {
             return new Vector3D(0, 0, 0);
         }
 
