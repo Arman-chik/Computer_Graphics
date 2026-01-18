@@ -19,6 +19,7 @@ import org.rendering_app.math.Z_Buffer;
 import org.rendering_app.math.PixelBuffer;
 import org.rendering_app.model.Model;
 import org.rendering_app.model.Material;
+import org.rendering_app.model.ModelPolygonRemover;
 import org.rendering_app.obj_utils.OBJReader;
 import org.rendering_app.obj_utils.OBJWriter;
 import org.rendering_app.render.Camera;
@@ -183,6 +184,8 @@ public class MainWindow extends Application {
         resetBtn.setOnAction(e -> onResetModel());
         Button deletePolysBtn = new Button("Delete polygons");
         deletePolysBtn.setOnAction(e -> onDeletePolygons());
+        Button deleteVertsBtn = new Button("Delete vertices");
+        deleteVertsBtn.setOnAction(e -> onDeleteVertices());
         Button rotateBtn = new Button("Rotate");
         rotateBtn.setOnAction(e -> onRotate());
         Button scaleBtn = new Button("Scale");
@@ -208,7 +211,7 @@ public class MainWindow extends Application {
 
         right.getChildren().addAll(
                 title,
-                resetBtn, deletePolysBtn, rotateBtn, scaleBtn, translateBtn, colorBtn,
+                resetBtn, deletePolysBtn, deleteVertsBtn, rotateBtn, scaleBtn, translateBtn, colorBtn,
                 new Separator(Orientation.HORIZONTAL),
                 showMeshCheckBox, showTextureCheckBox, showIlluminationCheckBox, addTextureBtn,
                 new Separator(Orientation.HORIZONTAL),
@@ -216,6 +219,52 @@ public class MainWindow extends Application {
         );
         return right;
     }
+
+    private void onDeleteVertices() {
+        if (!hasActiveModels()) return;
+
+        String s = showInputDialog("Vertex index or range", "0-10");
+        if (s == null) return;
+
+        int from, to;
+        try {
+            int[] r = ModelPolygonRemover.parseRange(s);
+            from = r[0];
+            to = r[1];
+            if (from < 0 || to < 0) {
+                showErrorDialog("Vertex index must be >= 0.");
+                return;
+            }
+        } catch (Exception ex) {
+            showErrorDialog("Example: 5 or 5-12.");
+            return;
+        }
+
+        int totalDeleted = 0;
+
+        try {
+            for (int idx : activeModels) {
+                Model m = models.get(idx);
+                if (m == null || m.getVertices() == null || m.getVertices().isEmpty()) continue;
+
+                int max = m.getVertices().size() - 1;
+                int f = Math.max(0, from);
+                int t = Math.min(max, to);
+                if (f > t) continue;
+
+                for (int i = t; i >= f; i--) {
+                    m.deleteVertex(i);
+                    totalDeleted++;
+                }
+            }
+
+            statusBar.setText("Removed vertices: " + totalDeleted);
+            updateScene();
+        } catch (Exception ex) {
+            showErrorDialog("Failed to delete vertices: " + ex.getMessage());
+        }
+    }
+
 
     private Pane createStatusBar() {
         HBox status = new HBox(10);
