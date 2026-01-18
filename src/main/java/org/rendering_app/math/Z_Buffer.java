@@ -38,4 +38,7 @@ public class Z_Buffer {
     }
 
 
+    public void clear() {
+        Arrays.fill(buffer, Float.POSITIVE_INFINITY);
+    }
 }
