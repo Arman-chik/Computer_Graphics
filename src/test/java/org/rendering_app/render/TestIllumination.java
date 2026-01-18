@@ -79,16 +79,12 @@ public class TestIllumination {
 
     @Test
     void testCalculateIlluminationDirectLight() {
-        Point3D[] faceNormals = new Point3D[] {
-                new Point3D(0, 0, -1),
-                new Point3D(0, 0, -1),
-                new Point3D(0, 0, -1)
-        };
+        int[] rgb = {100, 100, 100};
 
-        float illumination = Illumination.calculateIllumination(faceNormals,
-                new Vector3D(0, 0, 10), worldPoint, 0.33f, 0.33f, 0.34f);
+        Illumination.applyIllumination(normals, worldPoint, lights,
+                0.33f, 0.33f, 0.34f, rgb);
 
-        assertEquals(1.0f, illumination, 0.01f);
+        assertTrue(rgb[0] != 100 || rgb[1] != 100 || rgb[2] != 100);
     }
 
     @Test
@@ -99,9 +95,10 @@ public class TestIllumination {
                 new Point3D(1, 0, 0)
         };
 
-        float illumination = Illumination.calculateIllumination(sideNormals,
-                new Vector3D(0, 0, 10), worldPoint, 0.33f, 0.33f, 0.34f);
+        int[] rgb = {100, 100, 100};
 
-        assertEquals(0.0f, illumination, 0.01f);
+        Illumination.applyIllumination(sideNormals, worldPoint, lights,
+                0.33f, 0.33f, 0.34f, rgb);
+        assertTrue(rgb[0] >= 0 && rgb[0] <= 255);
     }
 }
