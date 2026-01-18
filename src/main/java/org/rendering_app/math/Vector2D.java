@@ -66,8 +66,9 @@ public class Vector2D {
 
     public Vector2D normalize() {
         float len = length();
+        float epsilon = 1e-6f;
 
-        if (len == 0) {
+        if (Math.abs(len) < epsilon) {
             return new Vector2D(0, 0);
         }
 
